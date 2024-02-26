@@ -1,203 +1,248 @@
 import pygame
 import random
+from pygame.sprite import Sprite, Group
+import pygame.font as font
+import sys
+
+background_image = pygame.image.load("bg.jpg")
+
+SCREEN_WIDTH = 750
+SCREEN_HEIGHT = 600
+
+
+is_jumping = False
+is_falling = False
+is_game_over = False
 
 pygame.init()
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("Caffeine Escape")
 
-black = (0, 0, 0)
-white = (255, 255, 255)
-red = (255, 0, 0)
+player_image = pygame.image.load("player.png").convert_alpha()
+block_image = pygame.image.load("block.png").convert_alpha()
+coin_image = pygame.image.load("coin.png").convert_alpha()
+enemy_image = pygame.image.load("enemy.png")
+punch_frames = [pygame.image.load("punch.png")]
+kick_frames = [pygame.image.load("kick.png")]
+jump_sound = pygame.mixer.Sound("jump.wav")
+coin_sound = pygame.mixer.Sound("coin.mp3")
+game_over_sound = pygame.mixer.Sound("game_over.wav")
 
-screen_width = 800
-screen_height = 600
-
-class Robot(pygame.sprite.Sprite):
+class Player(Sprite):
     def __init__(self):
         super().__init__()
-        self.image = pygame.Surface((50, 50))
-        self.image.fill(red)
-        self.rect = self.image.get_rect()
-        self.speed = 5
-        self.bullets = pygame.sprite.Group()
-        self.last_shot = pygame.time.get_ticks()  
+        self.image = player_image
+        self.rect = self.image.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100))
+        self.vel_y = 0
+        self.move_left = False
+        self.move_right = False
+        self.attack_area = None
+
+    def handle_attack(self):
+        attack_width = 50
+        attack_height = 30
+        self.attack_area = pygame.Rect(self.rect.x + self.rect.width // 2 - attack_width // 2,
+                                       self.rect.y,
+                                       attack_width,
+                                       attack_height)
+
+    def check_attack_collisions(self, enemy_group):
+        if self.attack_area is not None:
+            collided_enemies = pygame.sprite.spritecollide(self.attack_area, enemy_group, False)
+            for enemy in collided_enemies:
+                enemy.health -= 1
+                enemy_hit_anim = True
+
+    def move(self, dx):
+        if self.rect.left + dx >= 0 and self.rect.right + dx <= SCREEN_WIDTH:
+            self.rect.x += dx
 
     def update(self):
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_LEFT]:
-            self.rect.x -= self.speed
-        if keys[pygame.K_RIGHT]:
-            self.rect.x += self.speed
-        if keys[pygame.K_UP]:
-            self.rect.y -= self.speed
-        if keys[pygame.K_DOWN]:
-            self.rect.y += self.speed
-        if keys[pygame.K_SPACE]:
-            self.shoot()
+        global is_jumping, is_falling
 
-        if self.rect.left < 0:
-            self.rect.left = 0
-        elif self.rect.right > screen_width:
-            self.rect.right = screen_width
-        if self.rect.top < 0:
-            self.rect.top = 0
-        elif self.rect.bottom > screen_height:
-            self.rect.bottom = screen_height
+        if is_jumping and not is_falling:
+            jump_sound.play()
+            is_falling = False
+            self.vel_y = -7
 
-    def shoot(self):
-        current_time = pygame.time.get_ticks()
-        if current_time - self.last_shot > 500:  
-            bullet = Bullet(self.rect.centerx, self.rect.top)
-            self.bullets.add(bullet)
-            self.last_shot = current_time
+            self.rect.y += self.vel_y
 
-class Bullet(pygame.sprite.Sprite):
+        elif is_falling:
+            self.vel_y += 0.5
+            self.rect.y += self.vel_y
+
+            if self.rect.bottom >= SCREEN_HEIGHT:
+                is_falling = False
+                self.rect.bottom = SCREEN_HEIGHT
+
+        else:
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_a]:
+                self.move(-5)
+            elif keys[pygame.K_d]:
+                self.move(5)
+
+        for block in block_group:
+            if self.rect.colliderect(block.rect):
+                if self.vel_y > 0:
+                    self.rect.bottom = block.rect.top
+                    is_falling = False
+                elif self.vel_y < 0:
+                    self.rect.top = block.rect.bottom
+                    is_jumping = False
+
+        for coin in coin_group:
+            if self.rect.colliderect(coin.rect):
+                coin_group.remove(coin)
+                coin_sound.play()
+
+        if self.rect.bottom >= SCREEN_HEIGHT:
+            is_game_over = True
+            game_over_sound.play()
+
+class Enemy(Sprite):
     def __init__(self, x, y):
         super().__init__()
-        self.image = pygame.Surface((5, 10))
-        self.image.fill(white)
-        self.rect = self.image.get_rect()
-        self.rect.center = (x, y)
-        self.speed = 7
+        self.image = pygame.image.load("enemy.png")
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.health = 3
+        self.vel_x = 1
+        self.move_direction = 1
+        enemy_group.add(Enemy(100, 300))
+    def update(self):
+        self.rect.x += self.vel_x * self.move_direction
+        if self.rect.left <= 0 or self.rect.right >= SCREEN_WIDTH:
+            self.move_direction *= -1
+        if self.health <= 0:
+            self.kill()
+        elif self.enemy_hit_anim:
+            self.enemy_hit_anim = False
+
+player_hit_anim = False
+player_hit_frame = 0
+enemy_hit_anim = False
+enemy_hit_frame = 0
+
+def play_hit_animation(sprite, animation_frames, frame_duration):
+    global player_hit_frame, enemy_hit_frame
+    if sprite.hit_anim:
+        sprite.hit_frame = (sprite.hit_frame + 1) % len(animation_frames)
+        screen.blit(animation_frames[sprite.hit_frame], sprite.rect)
+        pygame.time.wait(frame_duration)
+
+class Block(Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = block_image
+        self.rect = self.image.get_rect(topleft=(x, y))
+
+
+class Coin(Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = coin_image
+        self.rect = self.image.get_rect(topleft=(x, y))
+        self.vel_x = random.uniform(-2, 2)  
+        self.vel_y = random.uniform(-1, 1)  
 
     def update(self):
-        self.rect.y -= self.speed
+        self.rect.x += self.vel_x  
+        self.rect.y += self.vel_y
+
+        if self.rect.left < 0:
+            self.vel_x *= -1
+        elif self.rect.right > SCREEN_WIDTH:
+            self.vel_x *= -1
 
         if self.rect.top < 0:
-            self.kill()
+            self.vel_y *= -1
+        elif self.rect.bottom > SCREEN_HEIGHT:
+            self.vel_y *= -1
 
-class Enemy(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__()
-        self.image = pygame.Surface((30, 30))
-        self.image.fill(black)
-        self.rect = self.image.get_rect()
-        self.rect.x = random.randint(0, screen_width - self.rect.width)
-        self.rect.y = random.randint(0, screen_height // 2)
-        self.speed = random.randint(1, 3)
-        self.health = 3 
 
-    def update(self):
-        self.rect.y += self.speed
-        if self.rect.bottom > screen_height:
-            self.rect.top = 0
-            self.rect.x = random.randint(0, screen_width - self.rect.width)
-        if pygame.sprite.spritecollide(self, player.bullets, True):
-            self.health -= 1
-            if self.health <= 0:
-                self.kill()
+player = Player()
+block_group = Group()
+coin_group = Group()
+enemy_group = Group()
 
-all_sprites = pygame.sprite.Group()
-enemies = pygame.sprite.Group()
+player_hit_frames = []
+enemy_hit_frames = []
+animation_frames = None
+frame_duration = 50
 
-background = pygame.image.load("bg.jpg")
-background = pygame.transform.scale(background, (800, 600)) 
+for i in range(10):
+    block_group.add(Block(i * 100, 400))
+    coin_group.add(Coin(random.randint(0, SCREEN_WIDTH - 50), random.randint(100, 400)))
 
-max_screen_size = (1024, 768)
-
-if background.get_width() > max_screen_size[0] or background.get_height() > max_screen_size[1]:
-    background = pygame.transform.scale(background, max_screen_size)
-
-screen = pygame.display.set_mode((800, 600))
-pygame.display.set_caption("Escape from Caffeine Lab")
 clock = pygame.time.Clock()
-player = Robot()
-all_sprites.add(player)
+start_time = pygame.time.get_ticks()
 
-powerup_group = pygame.sprite.Group()
-powerup_spawn_timer = random.randint(5000, 10000)  
-
-running = True
-while running:
+while True:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            running = False
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_w:
+                is_jumping = True
 
-    all_sprites.update()
-
-    if len(enemies) < 5:
-        enemy = Enemy()
-        all_sprites.add(enemy)
-        enemies.add(enemy)
-
-    hits = pygame.sprite.groupcollide(enemies, player.bullets, True, True)
-    for enemy in hits:
-        enemy_type = enemy.type
-        if enemy_type == "basic":
-            player.score += 100
-        elif enemy_type == "elite":
-            player.score += 200
-        elif enemy_type == "boss":
-            player.score += 500
+    if not is_falling:
+        is_jumping = False
+    player.update()
+    enemy_group.update()
+    enemy_hit = pygame.sprite.spritecollide(player.attack_area, enemy_group, False)
+    if pygame.mouse.get_pressed()[0]: 
+        if player.is_punching:  
+            player.is_punching = True
         else:
-            print(f"Unknown enemy type: {enemy_type}")
-        enemy.kill()
+            player.is_punching = True 
+            player.is_kicking = False  
+    else:
+        player.is_punching = False  
 
-    for powerup in powerup_group:
-        if pygame.sprite.collide_rect(player, powerup):
-            apply_powerup_effect(player, powerup)
-            powerup.kill()
-        def apply_powerup_effect(player, powerup):
-            powerup_type = powerup.type
-            if powerup_type == "shield":
-                player.invicible = True
-                pygame.time.delay(8000)
-                player.invicible = False
-            elif powerup_type == "multishot":
-                player.multishot_active = True
-                player.multishot_duration = 5000
-                player.multishot_count = 3
-            else:
-                print(f"Unknown powerUp type: {powerup_type}")
-            
-            def shoot(self):
-                if self.multishot_active:
-                    for _ in range(self.multishot_count + 1):
-                        bullet = Bullet(self.rect.centerx, self.rect.top)
-                        bullet.rect.x -= (self.multishot_count - 1) * 10
-                        self.bullets.add(bullet)
-                    self.multishot_duration -= 10
-                if self.multishot_duration <= 0:
-                    self.multishot_active = False
-                else:
-                    print("Error")
-                player.shoot = shoot
+    if not player.is_punching and pygame.mouse.get_pressed()[2]:  
+        if player.is_kicking:  
+            player.is_kicking = True
+        else:
+            player.is_kicking = True  
+            player.is_punching = False  
+    else:
+        player.is_kicking = False  
+    if enemy_hit:
+        for enemy in enemy_hit:
+            enemy.health -= 1 
+            enemy_hit_anim = True
 
-    if pygame.time.get_ticks() > powerup_spawn_timer:
-        powerup = PowerUp()  
-        powerup_group.add(powerup)
-        all_sprites.add(powerup)
-        powerup_spawn_timer = pygame.time.get_ticks() + random.randint(5000, 10000)
+    play_hit_animation(player, player_hit_frames, 50)
+    play_hit_animation(enemy, enemy_hit_frames, 50)
 
-    class PowerUp(pygame.sprite.Sprite):
-        def __init__(self):
-            super().__init__()
-            self.image = pygame.Surface((20, 20))
-            self.image.fill((0, 255, 0))
-            self.rect = self.image.get_rect()
-            self.rect.x = random.randint(0, screen_width = self.rect.width)
-            self.rext.y = random.randint(0, screen_height // 2)
-            self.type = random.choice(["speed", "fire_rate"])
+    screen.blit(background_image, (0, 0))
 
-        def update(self):
-            self.rect.y += 1
-            if self.rect.bottom > screen_height:
-                self.kill()
-            
-        def apply_effect(self, player):
-            if self.type == "speed":
-                player.speed += 2
-                pygame.time.delay(5000)
-                player.speed -= 2
-            elif self.type == "fire_rate":
-                player.last_shot -= 200
-                pygame.time.delay(3000)
-                player.last_shot += 200
+    
+    block_group.draw(screen)
+    coin_group.draw(screen)
+    screen.blit(player.image, player.rect)
 
-
-    screen.fill(white)
-    screen.blit(background, (0, 0))
-    all_sprites.draw(screen)
+    
     pygame.display.flip()
-    clock.tick(60)
 
-pygame.quit()
+   
+    clock.tick(60) 
 
+    is_jumping = False
+
+
+    player_punch_frame = 0
+    player_kick_frame = 0
+    punch_frames = [pygame.image.load("punch.png")]
+    kick_frames = [pygame.image.load("kick.png")]
+
+    def play_attack_animation(animation_frames, frame_duration):
+            global player_punch_frame, player_kick_frame
+    if player.is_punching:
+            player.punch_frame = (player.punch_frame + 1) % len(animation_frames)
+            screen.blit(animation_frames[player.punch_frame], player.rect)
+    elif player.is_kicking:
+            player.kick_frame = (player.kick_frame + 1) % len(animation_frames)
+            screen.blit(animation_frames[player.kick_frame], player.rect)
+    pygame.time.wait(frame_duration)
