@@ -19,13 +19,7 @@ pygame.display.set_caption("Caffeine Escape")
 background_image = pygame.image.load(("bg.jpg")).convert()
 background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
 
-player_stand = pygame.image.load(("standing.png"))
-player_jump = pygame.image.load(("jumping.png"))
-player_run1 = pygame.image.load(("running.png"))
-player_run2 = pygame.image.load(("running2.png"))
-player_shoot = pygame.image.load(("punch.png"))
-enemy_image = pygame.image.load(("enemy.png"))
-bullet_image = pygame.image.load(("fireball.png"))
+
 
 class Player(pygame.sprite.Sprite):
         def __init__(self):
