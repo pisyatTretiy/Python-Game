@@ -72,12 +72,6 @@ class Player(pygame.sprite.Sprite):
                 health_bar_width = int(self.health / self.max_health * 100)
                 pygame.draw.rect(self.health_bar_surface, (0, 255, 0), (0, 0, health_bar_width, 10))
 
-            if self.is_jumping:
-                self.rect.y += self.jump_power
-                self.jump_power += self.gravity
-                if self.rect.bottom >= SCREEN_HEIGHT:
-                    self.rect.bottom = SCREEN_HEIGHT
-                    self.is_jumping = False
 
             if keys[pygame.K_a]:
                 self.rect.x -= self.speed
