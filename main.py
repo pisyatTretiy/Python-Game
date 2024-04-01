@@ -11,10 +11,7 @@ gameover_sound = pygame.mixer.Sound(os.path.join("game_over.wav"))
 
 
 
-screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Caffeine Escape")
-background_image = pygame.image.load(("bg.jpg")).convert()
-background_image = pygame.transform.scale(background_image, (SCREEN_WIDTH, SCREEN_HEIGHT))
+
 
 player_stand = pygame.image.load(("standing.png"))
 player_jump = pygame.image.load(("jumping.png"))
