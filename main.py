@@ -9,10 +9,7 @@ pygame.mixer.init()
 jump_sound = pygame.mixer.Sound(os.path.join("jump.wav"))
 gameover_sound = pygame.mixer.Sound(os.path.join("game_over.wav"))
 
-SCREEN_WIDTH = 800  
-SCREEN_HEIGHT = 500
 
-WHITE = (255, 255, 255)
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption("Caffeine Escape")
